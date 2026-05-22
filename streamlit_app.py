@@ -1,61 +1,91 @@
 import streamlit as st
-import numpy as np
 import plotly.graph_objects as go
-from datetime import datetime, date, time, timedelta, timezone
-import pandas as pd
-
-# ---------------------------------------------------
-# PAGE CONFIG
-# ---------------------------------------------------
+from datetime import datetime, date, time
+from skyfield.api import load
+import numpy as np
 
 st.set_page_config(
-    page_title="Earth Time Machine",
-    page_icon="🌍",
+    page_title="Solar System Time Machine",
+    page_icon="🪐",
     layout="wide"
 )
 
-# ---------------------------------------------------
-# STYLING
-# ---------------------------------------------------
+# -----------------------------------------
+# PAGE STYLE
+# -----------------------------------------
 
 st.markdown("""
 <style>
-.stApp{
-    background:linear-gradient(
-        180deg,
-        #050816,
-        #0b132b
-    );
+.stApp {
+    background-color: #020617;
 }
 
-h1{
+h1 {
     text-align:center;
-    color:white;
-}
-
-[data-testid="stMetricValue"]{
-    color:#7dd3fc;
 }
 </style>
 """, unsafe_allow_html=True)
 
-# ---------------------------------------------------
-# TITLE
-# ---------------------------------------------------
-
-st.title("🌍 Earth Time Machine")
+st.title("☀️ Solar System Time Machine")
 
 st.caption(
-    "Explore Earth at any moment in time."
+    "Explore the real positions of planets for any date and time."
 )
 
-# ---------------------------------------------------
+# -----------------------------------------
+# LOAD NASA EPHEMERIS
+# -----------------------------------------
+
+@st.cache_resource
+def load_ephemeris():
+    eph = load("de421.bsp")
+    ts = load.timescale()
+    return eph, ts
+
+eph, ts = load_ephemeris()
+
+sun = eph["sun"]
+
+planet_keys = {
+    "Mercury": "mercury barycenter",
+    "Venus": "venus barycenter",
+    "Earth": "earth",
+    "Mars": "mars barycenter",
+    "Jupiter": "jupiter barycenter",
+    "Saturn": "saturn barycenter",
+    "Uranus": "uranus barycenter",
+    "Neptune": "neptune barycenter"
+}
+
+planet_colors = {
+    "Mercury": "#B8B8B8",
+    "Venus": "#E5C07B",
+    "Earth": "#4F8BFF",
+    "Mars": "#D65A31",
+    "Jupiter": "#D9A066",
+    "Saturn": "#F4D06F",
+    "Uranus": "#8EE7F5",
+    "Neptune": "#4169E1"
+}
+
+planet_sizes = {
+    "Mercury": 10,
+    "Venus": 12,
+    "Earth": 12,
+    "Mars": 10,
+    "Jupiter": 18,
+    "Saturn": 17,
+    "Uranus": 15,
+    "Neptune": 15
+}
+
+# -----------------------------------------
 # SIDEBAR
-# ---------------------------------------------------
+# -----------------------------------------
 
 with st.sidebar:
 
-    st.header("Time Controls")
+    st.header("Controls")
 
     selected_date = st.date_input(
         "Date",
@@ -67,153 +97,151 @@ with st.sidebar:
         value=datetime.utcnow().time()
     )
 
-    auto_rotate = st.checkbox(
-        "Animate Time",
-        value=False
+    show_orbits = st.checkbox(
+        "Show Orbits",
+        value=True
     )
 
-    speed = st.slider(
-        "Hours per frame",
-        1,
-        24,
-        6
+    selected_planet = st.selectbox(
+        "Planet Details",
+        list(planet_keys.keys())
     )
 
-# ---------------------------------------------------
-# DATETIME
-# ---------------------------------------------------
+# -----------------------------------------
+# CREATE SKYFIELD TIME
+# -----------------------------------------
 
 dt = datetime.combine(
     selected_date,
     selected_time
-).replace(tzinfo=timezone.utc)
-
-if auto_rotate:
-    dt += timedelta(hours=speed)
-
-# ---------------------------------------------------
-# DAY OF YEAR
-# ---------------------------------------------------
-
-day_of_year = dt.timetuple().tm_yday
-
-# ---------------------------------------------------
-# SOLAR DECLINATION
-# ---------------------------------------------------
-
-solar_declination = (
-    23.44 *
-    np.sin(
-        np.deg2rad(
-            (360/365)*(day_of_year-81)
-        )
-    )
 )
 
-# ---------------------------------------------------
-# SUBSOLAR LONGITUDE
-# ---------------------------------------------------
-
-utc_hours = (
-    dt.hour
-    + dt.minute/60
+t = ts.utc(
+    dt.year,
+    dt.month,
+    dt.day,
+    dt.hour,
+    dt.minute,
+    dt.second
 )
 
-subsolar_lon = 180 - utc_hours*15
+# -----------------------------------------
+# PLANET POSITIONS
+# -----------------------------------------
 
-# ---------------------------------------------------
-# TERMINATOR
-# ---------------------------------------------------
+planet_positions = {}
 
-lons = np.linspace(-180, 180, 720)
+for name, key in planet_keys.items():
 
-latitudes = []
+    planet = eph[key]
 
-decl = np.deg2rad(solar_declination)
-
-for lon in lons:
-
-    h = np.deg2rad(
-        lon - subsolar_lon
+    position = (
+        sun.at(t)
+        .observe(planet)
+        .position
+        .au
     )
 
-    lat = np.rad2deg(
-        np.arctan(
-            -np.cos(h)/np.tan(decl)
-        )
-    )
+    x = position[0]
+    y = position[1]
 
-    latitudes.append(lat)
+    planet_positions[name] = {
+        "x": x,
+        "y": y,
+        "distance": np.sqrt(x**2 + y**2)
+    }
 
-# ---------------------------------------------------
-# FIGURE
-# ---------------------------------------------------
+# -----------------------------------------
+# PLOT
+# -----------------------------------------
 
 fig = go.Figure()
 
-# oceans
+# Sun
 
 fig.add_trace(
-    go.Scattergeo(
-        lon=[],
-        lat=[],
+    go.Scatter(
+        x=[0],
+        y=[0],
         mode="markers",
-        showlegend=False
-    )
-)
-
-# night terminator
-
-fig.add_trace(
-    go.Scattergeo(
-        lon=lons,
-        lat=latitudes,
-        mode="lines",
-        line=dict(
-            width=3
-        ),
-        name="Day/Night Boundary"
-    )
-)
-
-# sun position
-
-fig.add_trace(
-    go.Scattergeo(
-        lon=[subsolar_lon],
-        lat=[solar_declination],
-        mode="markers+text",
-        text=["☀️"],
-        textposition="top center",
         marker=dict(
-            size=18,
-            color="yellow"
+            size=25,
+            color="gold"
         ),
         name="Sun"
     )
 )
 
-fig.update_geos(
-    projection_type="orthographic",
-    projection_rotation=dict(
-        lon=subsolar_lon
-    ),
-    showland=True,
-    showcountries=True,
-    showocean=True,
-    landcolor="rgb(50,120,70)",
-    oceancolor="rgb(20,40,80)",
-    bgcolor="rgba(0,0,0,0)"
-)
+# Orbit circles
+
+if show_orbits:
+
+    for planet_name in planet_positions:
+
+        radius = planet_positions[planet_name]["distance"]
+
+        theta = np.linspace(
+            0,
+            2*np.pi,
+            500
+        )
+
+        fig.add_trace(
+            go.Scatter(
+                x=radius*np.cos(theta),
+                y=radius*np.sin(theta),
+                mode="lines",
+                line=dict(
+                    width=1
+                ),
+                opacity=0.25,
+                showlegend=False
+            )
+        )
+
+# Planets
+
+for planet_name, pos in planet_positions.items():
+
+    fig.add_trace(
+        go.Scatter(
+            x=[pos["x"]],
+            y=[pos["y"]],
+            mode="markers+text",
+            text=[planet_name],
+            textposition="top center",
+            marker=dict(
+                size=planet_sizes[planet_name],
+                color=planet_colors[planet_name]
+            ),
+            name=planet_name
+        )
+    )
 
 fig.update_layout(
     template="plotly_dark",
-    height=700,
+    height=850,
+
+    plot_bgcolor="#020617",
+    paper_bgcolor="#020617",
+
+    xaxis=dict(
+        title="AU",
+        zeroline=False
+    ),
+
+    yaxis=dict(
+        title="AU",
+        scaleanchor="x",
+        scaleratio=1,
+        zeroline=False
+    ),
+
     margin=dict(
-        l=0,
-        r=0,
-        t=0,
-        b=0
+        l=10,
+        r=10,
+        t=20,
+        b=20
     )
 )
 
@@ -222,136 +250,29 @@ st.plotly_chart(
     use_container_width=True
 )
 
-# ---------------------------------------------------
-# MOON PHASE
-# ---------------------------------------------------
+# -----------------------------------------
+# PLANET INFO
+# -----------------------------------------
 
-known_new_moon = datetime(
-    2000,
-    1,
-    6,
-    tzinfo=timezone.utc
+planet = selected_planet
+distance = planet_positions[planet]["distance"]
+
+st.subheader(f"🪐 {planet}")
+
+col1, col2 = st.columns(2)
+
+col1.metric(
+    "Distance From Sun",
+    f"{distance:.2f} AU"
 )
 
-days_since = (
-    dt - known_new_moon
-).total_seconds() / 86400
-
-lunation = 29.53058867
-
-phase = (
-    days_since % lunation
-) / lunation
-
-illumination = (
-    1 - np.cos(2*np.pi*phase)
-) / 2
-
-if phase < 0.03:
-    moon = "🌑 New Moon"
-elif phase < 0.22:
-    moon = "🌒 Waxing Crescent"
-elif phase < 0.28:
-    moon = "🌓 First Quarter"
-elif phase < 0.47:
-    moon = "🌔 Waxing Gibbous"
-elif phase < 0.53:
-    moon = "🌕 Full Moon"
-elif phase < 0.72:
-    moon = "🌖 Waning Gibbous"
-elif phase < 0.78:
-    moon = "🌗 Last Quarter"
-else:
-    moon = "🌘 Waning Crescent"
-
-# ---------------------------------------------------
-# SUNRISE SUNSET APPROX
-# ---------------------------------------------------
-
-daylight_hours = (
-    12
-    + 4*np.sin(
-        np.deg2rad(
-            solar_declination
-        )
-    )
+col2.metric(
+    "X,Y Position",
+    f"{planet_positions[planet]['x']:.2f}, "
+    f"{planet_positions[planet]['y']:.2f}"
 )
-
-# ---------------------------------------------------
-# METRICS
-# ---------------------------------------------------
-
-c1, c2, c3, c4 = st.columns(4)
-
-c1.metric(
-    "Solar Declination",
-    f"{solar_declination:.1f}°"
-)
-
-c2.metric(
-    "Subsolar Longitude",
-    f"{subsolar_lon:.1f}°"
-)
-
-c3.metric(
-    "Moon Illumination",
-    f"{illumination*100:.0f}%"
-)
-
-c4.metric(
-    "Estimated Daylight",
-    f"{daylight_hours:.1f} h"
-)
-
-# ---------------------------------------------------
-# MOON CARD
-# ---------------------------------------------------
-
-st.subheader("🌕 Moon Phase")
 
 st.info(
-    f"{moon}\n\n"
-    f"Illumination: {illumination*100:.1f}%"
-)
-
-# ---------------------------------------------------
-# SEASON
-# ---------------------------------------------------
-
-st.subheader("🌎 Earth Status")
-
-if solar_declination > 20:
-    season = "Northern Hemisphere Summer"
-elif solar_declination < -20:
-    season = "Northern Hemisphere Winter"
-else:
-    season = "Spring / Autumn Transition"
-
-st.success(season)
-
-# ---------------------------------------------------
-# IMPORTANT DATES
-# ---------------------------------------------------
-
-events = pd.DataFrame({
-    "Event":[
-        "March Equinox",
-        "June Solstice",
-        "September Equinox",
-        "December Solstice"
-    ],
-    "Approx Date":[
-        "March 20",
-        "June 21",
-        "September 22",
-        "December 21"
-    ]
-})
-
-st.subheader("☀️ Seasonal Reference")
-
-st.dataframe(
-    events,
-    use_container_width=True,
-    hide_index=True
+    "Planet positions are calculated using NASA JPL "
+    "DE421 ephemerides through Skyfield."
 )
