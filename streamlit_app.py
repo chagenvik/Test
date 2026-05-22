@@ -1,164 +1,180 @@
 import streamlit as st
 import numpy as np
 import plotly.graph_objects as go
-import time
 
 st.set_page_config(
-    page_title="Neon 3D Universe",
-    page_icon="🌌",
+    page_title="3D Function Explorer",
+    page_icon="🚀",
     layout="wide"
 )
 
-# --------------------------
-# Custom CSS
-# --------------------------
+# -------------------------------------------------
+# Styling
+# -------------------------------------------------
 st.markdown("""
 <style>
 .stApp {
     background: linear-gradient(
         135deg,
-        #050510 0%,
-        #0f1020 50%,
-        #1a0033 100%
+        #050816 0%,
+        #0a0f2c 100%
     );
 }
 
 h1 {
     text-align: center;
-    color: #00ffff !important;
-    text-shadow: 0px 0px 20px cyan;
-}
-
-[data-testid="stSidebar"] {
-    background-color: rgba(10,10,30,0.9);
+    color: #00e5ff;
 }
 </style>
 """, unsafe_allow_html=True)
 
-st.title("🌌 Neon 3D Universe")
+st.title("🚀 Interactive 3D Function Explorer")
 
-st.markdown(
-    "<center><h4 style='color:#ff00ff;'>Interactive Animated Mathematical Galaxy</h4></center>",
-    unsafe_allow_html=True
-)
-
-# --------------------------
-# Controls
-# --------------------------
+# -------------------------------------------------
+# Sidebar Controls
+# -------------------------------------------------
 with st.sidebar:
-    st.header("🎛 Controls")
 
-    speed = st.slider(
-        "Animation Speed",
-        0.01,
-        0.30,
-        0.08
-    )
+    st.header("Controls")
 
-    amplitude = st.slider(
-        "Wave Height",
-        0.5,
-        5.0,
-        2.0
-    )
-
-    resolution = st.slider(
-        "Resolution",
-        30,
-        120,
-        70
+    function_name = st.selectbox(
+        "Choose Function",
+        [
+            "Wave",
+            "Ripple",
+            "Peaks",
+            "Saddle",
+            "Gaussian",
+            "Spiral"
+        ]
     )
 
     colorscale = st.selectbox(
-        "Colors",
+        "Color Theme",
         [
             "Turbo",
             "Viridis",
             "Plasma",
             "Inferno",
             "Magma",
-            "Rainbow"
+            "Rainbow",
+            "Electric",
+            "Jet"
         ]
     )
 
-# --------------------------
-# Plot Container
-# --------------------------
-plot_placeholder = st.empty()
+    amplitude = st.slider(
+        "Amplitude",
+        0.1,
+        10.0,
+        2.0,
+        0.1
+    )
 
-# --------------------------
-# Animation Loop
-# --------------------------
-t = 0
+    frequency = st.slider(
+        "Frequency",
+        0.1,
+        10.0,
+        2.0,
+        0.1
+    )
 
-while True:
+    resolution = st.slider(
+        "Resolution",
+        30,
+        200,
+        100
+    )
 
-    x = np.linspace(-5, 5, resolution)
-    y = np.linspace(-5, 5, resolution)
+# -------------------------------------------------
+# Mesh
+# -------------------------------------------------
+x = np.linspace(-5, 5, resolution)
+y = np.linspace(-5, 5, resolution)
 
-    X, Y = np.meshgrid(x, y)
+X, Y = np.meshgrid(x, y)
 
-    R = np.sqrt(X**2 + Y**2)
+R = np.sqrt(X**2 + Y**2)
 
+# -------------------------------------------------
+# Functions
+# -------------------------------------------------
+if function_name == "Wave":
+    Z = amplitude * np.sin(frequency * X) * np.cos(frequency * Y)
+
+elif function_name == "Ripple":
+    Z = amplitude * np.sin(frequency * R)
+
+elif function_name == "Peaks":
     Z = (
-        amplitude
-        * np.sin(R * 2 - t)
-        * np.cos(X + t/2)
-        + np.sin(Y * 2 + t)
+        3*(1-X)**2*np.exp(-(X**2) - (Y+1)**2)
+        - 10*(X/5 - X**3 - Y**5)*np.exp(-X**2-Y**2)
+        - 1/3*np.exp(-(X+1)**2 - Y**2)
     )
 
-    fig = go.Figure()
+elif function_name == "Saddle":
+    Z = amplitude * (X**2 - Y**2) / 10
 
-    fig.add_trace(
-        go.Surface(
-            x=X,
-            y=Y,
-            z=Z,
-            colorscale=colorscale,
-            showscale=False
-        )
+elif function_name == "Gaussian":
+    Z = amplitude * np.exp(-(X**2 + Y**2) / frequency)
+
+elif function_name == "Spiral":
+    theta = np.arctan2(Y, X)
+    Z = amplitude * np.sin(frequency * R + theta * 4)
+
+# -------------------------------------------------
+# Plot
+# -------------------------------------------------
+fig = go.Figure()
+
+fig.add_trace(
+    go.Surface(
+        x=X,
+        y=Y,
+        z=Z,
+        colorscale=colorscale,
+        lighting=dict(
+            ambient=0.5,
+            diffuse=1.0,
+            specular=1.0,
+            roughness=0.2,
+            fresnel=0.5
+        ),
+        contours={
+            "z": {
+                "show": True,
+                "width": 1
+            }
+        }
     )
+)
 
-    fig.update_layout(
-        template="plotly_dark",
-        height=750,
-        margin=dict(l=0, r=0, b=0, t=0),
+fig.update_layout(
+    template="plotly_dark",
+    height=850,
+    margin=dict(l=0, r=0, t=0, b=0),
 
-        scene=dict(
-            bgcolor="rgba(0,0,0,0)",
+    scene=dict(
+        aspectmode="cube",
 
-            camera=dict(
-                eye=dict(
-                    x=1.8*np.cos(t*0.15),
-                    y=1.8*np.sin(t*0.15),
-                    z=1.2
-                )
-            ),
+        camera=dict(
+            eye=dict(x=1.5, y=1.5, z=1.0)
+        ),
 
-            xaxis=dict(
-                backgroundcolor="black",
-                gridcolor="cyan",
-                zerolinecolor="cyan"
-            ),
+        xaxis_title="X",
+        yaxis_title="Y",
+        zaxis_title="Z",
 
-            yaxis=dict(
-                backgroundcolor="black",
-                gridcolor="magenta",
-                zerolinecolor="magenta"
-            ),
-
-            zaxis=dict(
-                backgroundcolor="black",
-                gridcolor="yellow",
-                zerolinecolor="yellow"
-            )
-        )
+        bgcolor="rgba(0,0,0,0)"
     )
+)
 
-    plot_placeholder.plotly_chart(
-        fig,
-        use_container_width=True
-    )
+st.plotly_chart(
+    fig,
+    use_container_width=True
+)
 
-    t += speed
-    time.sleep(0.03)
+st.info(
+    "Drag with the mouse to rotate, scroll to zoom, "
+    "and change the function or parameters from the sidebar."
+)
