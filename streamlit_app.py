@@ -1,171 +1,214 @@
 import streamlit as st
-import numpy as np
 import plotly.graph_objects as go
+import numpy as np
 
 st.set_page_config(
-    page_title="3D Function Explorer",
-    page_icon="🚀",
+    page_title="Interactive Solar System",
+    page_icon="🪐",
     layout="wide"
 )
 
-# -------------------------------------------------
-# Styling
-# -------------------------------------------------
-st.markdown("""
-<style>
-.stApp {
-    background: linear-gradient(
-        135deg,
-        #050816 0%,
-        #0a0f2c 100%
-    );
+st.title("☀️ Interactive Solar System")
+
+# ------------------------------------
+# Planet Data
+# ------------------------------------
+PLANETS = {
+    "Mercury": {
+        "distance": 0.39,
+        "period": 88,
+        "size": 6,
+        "color": "#B0B0B0"
+    },
+    "Venus": {
+        "distance": 0.72,
+        "period": 225,
+        "size": 10,
+        "color": "#E8C27A"
+    },
+    "Earth": {
+        "distance": 1.0,
+        "period": 365,
+        "size": 10,
+        "color": "#3B82F6"
+    },
+    "Mars": {
+        "distance": 1.52,
+        "period": 687,
+        "size": 8,
+        "color": "#D65A31"
+    },
+    "Jupiter": {
+        "distance": 5.2,
+        "period": 4333,
+        "size": 25,
+        "color": "#D9A066"
+    },
+    "Saturn": {
+        "distance": 9.54,
+        "period": 10759,
+        "size": 22,
+        "color": "#F5D76E"
+    },
+    "Uranus": {
+        "distance": 19.2,
+        "period": 30687,
+        "size": 16,
+        "color": "#6BE6FF"
+    },
+    "Neptune": {
+        "distance": 30.1,
+        "period": 60190,
+        "size": 16,
+        "color": "#4169E1"
+    }
 }
 
-h1 {
-    text-align: center;
-    color: #00e5ff;
-}
-</style>
-""", unsafe_allow_html=True)
-
-st.title("🚀 Interactive 3D Function Explorer")
-
-# -------------------------------------------------
+# ------------------------------------
 # Sidebar Controls
-# -------------------------------------------------
+# ------------------------------------
 with st.sidebar:
 
-    st.header("Controls")
+    st.header("⚙️ Controls")
 
-    function_name = st.selectbox(
-        "Choose Function",
-        [
-            "Wave",
-            "Ripple",
-            "Peaks",
-            "Saddle",
-            "Gaussian",
-            "Spiral"
-        ]
+    simulation_day = st.slider(
+        "Simulation Day",
+        0,
+        10000,
+        1000
     )
 
-    colorscale = st.selectbox(
-        "Color Theme",
-        [
-            "Turbo",
-            "Viridis",
-            "Plasma",
-            "Inferno",
-            "Magma",
-            "Rainbow",
-            "Electric",
-            "Jet"
-        ]
+    scale_factor = st.slider(
+        "Orbit Scale",
+        1.0,
+        5.0,
+        2.0
     )
 
-    amplitude = st.slider(
-        "Amplitude",
-        0.1,
-        10.0,
-        2.0,
-        0.1
+    show_orbits = st.checkbox(
+        "Show Orbits",
+        value=True
     )
 
-    frequency = st.slider(
-        "Frequency",
-        0.1,
-        10.0,
-        2.0,
-        0.1
+    selected_planet = st.selectbox(
+        "Planet Information",
+        list(PLANETS.keys())
     )
 
-    resolution = st.slider(
-        "Resolution",
-        30,
-        200,
-        100
-    )
-
-# -------------------------------------------------
-# Mesh
-# -------------------------------------------------
-x = np.linspace(-5, 5, resolution)
-y = np.linspace(-5, 5, resolution)
-
-X, Y = np.meshgrid(x, y)
-
-R = np.sqrt(X**2 + Y**2)
-
-# -------------------------------------------------
-# Functions
-# -------------------------------------------------
-if function_name == "Wave":
-    Z = amplitude * np.sin(frequency * X) * np.cos(frequency * Y)
-
-elif function_name == "Ripple":
-    Z = amplitude * np.sin(frequency * R)
-
-elif function_name == "Peaks":
-    Z = (
-        3*(1-X)**2*np.exp(-(X**2) - (Y+1)**2)
-        - 10*(X/5 - X**3 - Y**5)*np.exp(-X**2-Y**2)
-        - 1/3*np.exp(-(X+1)**2 - Y**2)
-    )
-
-elif function_name == "Saddle":
-    Z = amplitude * (X**2 - Y**2) / 10
-
-elif function_name == "Gaussian":
-    Z = amplitude * np.exp(-(X**2 + Y**2) / frequency)
-
-elif function_name == "Spiral":
-    theta = np.arctan2(Y, X)
-    Z = amplitude * np.sin(frequency * R + theta * 4)
-
-# -------------------------------------------------
-# Plot
-# -------------------------------------------------
+# ------------------------------------
+# Create Figure
+# ------------------------------------
 fig = go.Figure()
 
+# Sun
 fig.add_trace(
-    go.Surface(
-        x=X,
-        y=Y,
-        z=Z,
-        colorscale=colorscale,
-        lighting=dict(
-            ambient=0.5,
-            diffuse=1.0,
-            specular=1.0,
-            roughness=0.2,
-            fresnel=0.5
+    go.Scatter3d(
+        x=[0],
+        y=[0],
+        z=[0],
+        mode="markers",
+        marker=dict(
+            size=35,
+            color="gold"
         ),
-        contours={
-            "z": {
-                "show": True,
-                "width": 1
-            }
-        }
+        name="Sun"
     )
 )
 
+# ------------------------------------
+# Planets
+# ------------------------------------
+for name, p in PLANETS.items():
+
+    radius = p["distance"] * scale_factor
+
+    angle = (
+        2
+        * np.pi
+        * simulation_day
+        / p["period"]
+    )
+
+    x = radius * np.cos(angle)
+    y = radius * np.sin(angle)
+    z = 0
+
+    # Orbit ring
+    if show_orbits:
+
+        t = np.linspace(
+            0,
+            2*np.pi,
+            300
+        )
+
+        fig.add_trace(
+            go.Scatter3d(
+                x=radius*np.cos(t),
+                y=radius*np.sin(t),
+                z=np.zeros_like(t),
+                mode="lines",
+                line=dict(
+                    width=2
+                ),
+                opacity=0.3,
+                showlegend=False
+            )
+        )
+
+    # Planet
+    fig.add_trace(
+        go.Scatter3d(
+            x=[x],
+            y=[y],
+            z=[z],
+            mode="markers+text",
+            text=[name],
+            textposition="top center",
+            marker=dict(
+                size=p["size"],
+                color=p["color"]
+            ),
+            name=name
+        )
+    )
+
+# ------------------------------------
+# Layout
+# ------------------------------------
 fig.update_layout(
     template="plotly_dark",
-    height=850,
-    margin=dict(l=0, r=0, t=0, b=0),
+    height=900,
 
     scene=dict(
-        aspectmode="cube",
+        aspectmode="data",
 
-        camera=dict(
-            eye=dict(x=1.5, y=1.5, z=1.0)
+        xaxis=dict(
+            visible=False
+        ),
+        yaxis=dict(
+            visible=False
+        ),
+        zaxis=dict(
+            visible=False
         ),
 
-        xaxis_title="X",
-        yaxis_title="Y",
-        zaxis_title="Z",
+        bgcolor="black",
 
-        bgcolor="rgba(0,0,0,0)"
+        camera=dict(
+            eye=dict(
+                x=1.5,
+                y=1.5,
+                z=0.8
+            )
+        )
+    ),
+
+    margin=dict(
+        l=0,
+        r=0,
+        t=0,
+        b=0
     )
 )
 
@@ -174,7 +217,26 @@ st.plotly_chart(
     use_container_width=True
 )
 
-st.info(
-    "Drag with the mouse to rotate, scroll to zoom, "
-    "and change the function or parameters from the sidebar."
+# ------------------------------------
+# Planet Info
+# ------------------------------------
+planet = PLANETS[selected_planet]
+
+st.subheader(f"🪐 {selected_planet}")
+
+col1, col2, col3 = st.columns(3)
+
+col1.metric(
+    "Distance from Sun",
+    f"{planet['distance']} AU"
+)
+
+col2.metric(
+    "Orbital Period",
+    f"{planet['period']} days"
+)
+
+col3.metric(
+    "Relative Size",
+    planet["size"]
 )
